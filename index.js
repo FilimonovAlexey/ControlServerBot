@@ -134,4 +134,8 @@ const handlePM2Command = async (ctx) => {
 
 bot.hears(/^[\w-]+$/, checkUser, handlePM2Command);
 
+bot.api.setMyCommands([
+  { command: 'start', description: 'Запуск бота' },
+]);
+
 bot.start();
