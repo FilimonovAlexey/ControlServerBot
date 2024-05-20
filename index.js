@@ -1,11 +1,11 @@
-const { Bot, Keyboard } = require('grammy');
+const { Bot, Keyboard, session } = require('grammy');
 const { NodeSSH } = require('node-ssh');
 const ssh = new NodeSSH();
 require('dotenv').config();
 
 const bot = new Bot(process.env.BOT_API_KEY);
+const adminId = parseInt(process.env.ADMIN_ID, 10);
 
-// Подключение к удаленному серверу
 const connectToServer = async () => {
   await ssh.connect({
     host: process.env.SERVER_HOST,
@@ -30,21 +30,33 @@ const executePM2Command = async (command, id) => {
   return result.stdout;
 };
 
+// Проверка пользователя
+const checkUser = (ctx, next) => {
+  const userId = ctx.from?.id;
+  if (userId === adminId) {
+    return next();
+  } else {
+    ctx.reply('У вас нет доступа к этому боту.');
+  }
+};
+
 const mainKeyboard = new Keyboard()
   .text('Статус PM2').row()
   .text('Остановить процесс').row()
   .text('Перезапустить процесс').row()
   .text('Запустить процесс').row();
 
-bot.command('start', async (ctx) => {
+bot.use(session({ initial: () => ({}) }));
+
+bot.command('start', checkUser, async (ctx) => {
   await ctx.reply('Выберите действие:', { reply_markup: { keyboard: mainKeyboard.build() } });
 });
 
-bot.hears('Назад', async (ctx) => {
+bot.hears('Назад', checkUser, async (ctx) => {
   await ctx.reply('Выберите действие:', { reply_markup: { keyboard: mainKeyboard.build() } });
 });
 
-bot.hears('Статус PM2', async (ctx) => {
+bot.hears('Статус PM2', checkUser, async (ctx) => {
   try {
     await connectToServer();
     const status = await getPM2Status();
@@ -66,40 +78,44 @@ const createProcessKeyboard = (processes) => {
   return keyboard;
 };
 
-bot.hears('Остановить процесс', async (ctx) => {
+bot.hears('Остановить процесс', checkUser, async (ctx) => {
   try {
     await connectToServer();
     const status = await getPM2Status();
     const keyboard = createProcessKeyboard(status);
+    ctx.session.currentCommand = 'stop';
     await ctx.reply('Выберите процесс для остановки:', { reply_markup: { keyboard: keyboard.build() } });
   } catch (error) {
     await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: mainKeyboard.build() } });
   }
 });
 
-bot.hears('Перезапустить процесс', async (ctx) => {
+bot.hears('Перезапустить процесс', checkUser, async (ctx) => {
   try {
     await connectToServer();
     const status = await getPM2Status();
     const keyboard = createProcessKeyboard(status);
+    ctx.session.currentCommand = 'restart';
     await ctx.reply('Выберите процесс для перезапуска:', { reply_markup: { keyboard: keyboard.build() } });
   } catch (error) {
     await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: mainKeyboard.build() } });
   }
 });
 
-bot.hears('Запустить процесс', async (ctx) => {
+bot.hears('Запустить процесс', checkUser, async (ctx) => {
   try {
     await connectToServer();
     const status = await getPM2Status();
     const keyboard = createProcessKeyboard(status);
+    ctx.session.currentCommand = 'start';
     await ctx.reply('Выберите процесс для запуска:', { reply_markup: { keyboard: keyboard.build() } });
   } catch (error) {
     await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: mainKeyboard.build() } });
   }
 });
 
-const handlePM2Command = (command) => async (ctx) => {
+const handlePM2Command = async (ctx) => {
+  const command = ctx.session.currentCommand;
   const processName = ctx.message.text;
   try {
     await connectToServer();
@@ -116,8 +132,6 @@ const handlePM2Command = (command) => async (ctx) => {
   }
 };
 
-bot.hears(/^[\w-]+$/, handlePM2Command('stop'));
-bot.hears(/^[\w-]+$/, handlePM2Command('restart'));
-bot.hears(/^[\w-]+$/, handlePM2Command('start'));
+bot.hears(/^[\w-]+$/, checkUser, handlePM2Command);
 
 bot.start();
