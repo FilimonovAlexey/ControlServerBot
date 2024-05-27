@@ -22,6 +22,14 @@ const getPM2Status = async () => {
   return JSON.parse(result.stdout);
 };
 
+const executeCommand = async (command) => {
+  const result = await ssh.execCommand(command);
+  if (result.stderr) {
+    throw new Error(result.stderr);
+  }
+  return result.stdout;
+};
+
 const executePM2Command = async (command, id) => {
   const result = await ssh.execCommand(`pm2 ${command} ${id}`);
   if (result.stderr) {
@@ -42,7 +50,6 @@ const checkUser = (ctx, next) => {
 
 const mainKeyboard = new Keyboard()
   .text('PM2').row()
-  .text('Git').row()
   .text('Серверные команды').row();
 
 const pm2Keyboard = new Keyboard()
@@ -50,6 +57,11 @@ const pm2Keyboard = new Keyboard()
   .text('Остановить процесс').row()
   .text('Перезапустить процесс').row()
   .text('Запустить процесс').row()
+  .text('Назад').row();
+
+const serverCommandsKeyboard = new Keyboard()
+  .text('Перезапуск сервера').row()
+  .text('Обновления пакетов').row()
   .text('Назад').row();
 
 bot.use(session({ initial: () => ({}) }));
@@ -64,6 +76,10 @@ bot.hears('Назад', checkUser, async (ctx) => {
 
 bot.hears('PM2', checkUser, async (ctx) => {
   await ctx.reply('Выберите действие для PM2:', { reply_markup: { keyboard: pm2Keyboard.build() } });
+});
+
+bot.hears('Серверные команды', checkUser, async (ctx) => {
+  await ctx.reply('Выберите команду для сервера:', { reply_markup: { keyboard: serverCommandsKeyboard.build() } });
 });
 
 bot.hears('Статус PM2', checkUser, async (ctx) => {
@@ -121,6 +137,26 @@ bot.hears('Запустить процесс', checkUser, async (ctx) => {
     await ctx.reply('Выберите процесс для запуска:', { reply_markup: { keyboard: keyboard.build() } });
   } catch (error) {
     await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: pm2Keyboard.build() } });
+  }
+});
+
+bot.hears('Перезапуск сервера', checkUser, async (ctx) => {
+  try {
+    await connectToServer();
+    await executeCommand('sudo reboot');
+    await ctx.reply('Сервер успешно перезагружается.', { reply_markup: { keyboard: serverCommandsKeyboard.build() } });
+  } catch (error) {
+    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: serverCommandsKeyboard.build() } });
+  }
+});
+
+bot.hears('Обновления пакетов', checkUser, async (ctx) => {
+  try {
+    await connectToServer();
+    await executeCommand('sudo apt-get update && sudo apt-get upgrade -y');
+    await ctx.reply('Все пакеты успешно обновлены.', { reply_markup: { keyboard: serverCommandsKeyboard.build() } });
+  } catch (error) {
+    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: serverCommandsKeyboard.build() } });
   }
 });
 
