@@ -41,19 +41,29 @@ const checkUser = (ctx, next) => {
 };
 
 const mainKeyboard = new Keyboard()
+  .text('PM2').row()
+  .text('Git').row()
+  .text('Серверные команды').row();
+
+const pm2Keyboard = new Keyboard()
   .text('Статус PM2').row()
   .text('Остановить процесс').row()
   .text('Перезапустить процесс').row()
-  .text('Запустить процесс').row();
+  .text('Запустить процесс').row()
+  .text('Назад').row();
 
 bot.use(session({ initial: () => ({}) }));
 
 bot.command('start', checkUser, async (ctx) => {
-  await ctx.reply('Выберите действие:', { reply_markup: { keyboard: mainKeyboard.build() } });
+  await ctx.reply('Выберите категорию:', { reply_markup: { keyboard: mainKeyboard.build() } });
 });
 
 bot.hears('Назад', checkUser, async (ctx) => {
-  await ctx.reply('Выберите действие:', { reply_markup: { keyboard: mainKeyboard.build() } });
+  await ctx.reply('Выберите категорию:', { reply_markup: { keyboard: mainKeyboard.build() } });
+});
+
+bot.hears('PM2', checkUser, async (ctx) => {
+  await ctx.reply('Выберите действие для PM2:', { reply_markup: { keyboard: pm2Keyboard.build() } });
 });
 
 bot.hears('Статус PM2', checkUser, async (ctx) => {
@@ -63,9 +73,9 @@ bot.hears('Статус PM2', checkUser, async (ctx) => {
     const statusMessage = status
       .map((proc) => `${proc.pm_id}: ${proc.name} - ${proc.pm2_env.status}`)
       .join('\n');
-    await ctx.reply(`Статус PM2:\n${statusMessage}`, { reply_markup: { keyboard: mainKeyboard.build() } });
+    await ctx.reply(`Статус PM2:\n${statusMessage}`, { reply_markup: { keyboard: pm2Keyboard.build() } });
   } catch (error) {
-    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: mainKeyboard.build() } });
+    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: pm2Keyboard.build() } });
   }
 });
 
@@ -86,7 +96,7 @@ bot.hears('Остановить процесс', checkUser, async (ctx) => {
     ctx.session.currentCommand = 'stop';
     await ctx.reply('Выберите процесс для остановки:', { reply_markup: { keyboard: keyboard.build() } });
   } catch (error) {
-    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: mainKeyboard.build() } });
+    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: pm2Keyboard.build() } });
   }
 });
 
@@ -98,7 +108,7 @@ bot.hears('Перезапустить процесс', checkUser, async (ctx) =>
     ctx.session.currentCommand = 'restart';
     await ctx.reply('Выберите процесс для перезапуска:', { reply_markup: { keyboard: keyboard.build() } });
   } catch (error) {
-    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: mainKeyboard.build() } });
+    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: pm2Keyboard.build() } });
   }
 });
 
@@ -110,25 +120,29 @@ bot.hears('Запустить процесс', checkUser, async (ctx) => {
     ctx.session.currentCommand = 'start';
     await ctx.reply('Выберите процесс для запуска:', { reply_markup: { keyboard: keyboard.build() } });
   } catch (error) {
-    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: mainKeyboard.build() } });
+    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: pm2Keyboard.build() } });
   }
 });
 
 const handlePM2Command = async (ctx) => {
   const command = ctx.session.currentCommand;
   const processName = ctx.message.text;
+  if (processName === 'Назад') {
+    await ctx.reply('Выберите действие для PM2:', { reply_markup: { keyboard: pm2Keyboard.build() } });
+    return;
+  }
   try {
     await connectToServer();
     const status = await getPM2Status();
     const process = status.find((proc) => proc.name === processName);
     if (!process) {
-      await ctx.reply('Процесс не найден.', { reply_markup: { keyboard: mainKeyboard.build() } });
+      await ctx.reply('Процесс не найден.', { reply_markup: { keyboard: pm2Keyboard.build() } });
       return;
     }
     await executePM2Command(command, process.pm_id);
-    await ctx.reply(`Процесс ${processName} успешно ${command === 'stop' ? 'остановлен' : command === 'restart' ? 'перезапущен' : 'запущен'}.`, { reply_markup: { keyboard: mainKeyboard.build() } });
+    await ctx.reply(`Процесс ${processName} успешно ${command === 'stop' ? 'остановлен' : command === 'restart' ? 'перезапущен' : 'запущен'}.`, { reply_markup: { keyboard: pm2Keyboard.build() } });
   } catch (error) {
-    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: mainKeyboard.build() } });
+    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: pm2Keyboard.build() } });
   }
 };
 
