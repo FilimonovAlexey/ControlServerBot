@@ -187,7 +187,13 @@ bot.hears(Object.keys(projectPaths), checkUser, async (ctx) => {
   }
   try {
     await connectToServer();
-    const result = await executeCommand('git pull', projectPath);
+    let result;
+    try {
+      result = await executeCommand('git pull', projectPath);
+    } catch (error) {
+      // Если ошибка возникает, повторим команду еще раз
+      result = await executeCommand('git pull', projectPath);
+    }
     await ctx.reply(`Проект ${project} успешно обновлен:\n${result}`, { reply_markup: { keyboard: updateProjectKeyboard.build() } });
   } catch (error) {
     await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: updateProjectKeyboard.build() } });
