@@ -6,6 +6,13 @@ require('dotenv').config();
 const bot = new Bot(process.env.BOT_API_KEY);
 const adminId = parseInt(process.env.ADMIN_ID, 10);
 
+// Разбор PROJECT_PATHS из переменной окружения
+const projectPaths = process.env.PROJECT_PATHS.split(',').reduce((acc, path) => {
+  const [name, location] = path.split(':');
+  acc[name] = location;
+  return acc;
+}, {});
+
 const connectToServer = async () => {
   await ssh.connect({
     host: process.env.SERVER_HOST,
@@ -22,8 +29,8 @@ const getPM2Status = async () => {
   return JSON.parse(result.stdout);
 };
 
-const executeCommand = async (command) => {
-  const result = await ssh.execCommand(command);
+const executeCommand = async (command, cwd) => {
+  const result = await ssh.execCommand(command, { cwd });
   if (result.stderr) {
     throw new Error(result.stderr);
   }
@@ -62,7 +69,14 @@ const pm2Keyboard = new Keyboard()
 const serverCommandsKeyboard = new Keyboard()
   .text('Перезапуск сервера').row()
   .text('Обновления пакетов').row()
+  .text('Обновить проект').row()
   .text('Назад').row();
+
+const updateProjectKeyboard = new Keyboard();
+Object.keys(projectPaths).forEach((project) => {
+  updateProjectKeyboard.text(project).row();
+});
+updateProjectKeyboard.text('Назад').row();
 
 bot.use(session({ initial: () => ({}) }));
 
@@ -80,6 +94,10 @@ bot.hears('PM2', checkUser, async (ctx) => {
 
 bot.hears('Серверные команды', checkUser, async (ctx) => {
   await ctx.reply('Выберите команду для сервера:', { reply_markup: { keyboard: serverCommandsKeyboard.build() } });
+});
+
+bot.hears('Обновить проект', checkUser, async (ctx) => {
+  await ctx.reply('Выберите проект для обновления:', { reply_markup: { keyboard: updateProjectKeyboard.build() } });
 });
 
 bot.hears('Статус PM2', checkUser, async (ctx) => {
@@ -157,6 +175,22 @@ bot.hears('Обновления пакетов', checkUser, async (ctx) => {
     await ctx.reply('Все пакеты успешно обновлены.', { reply_markup: { keyboard: serverCommandsKeyboard.build() } });
   } catch (error) {
     await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: serverCommandsKeyboard.build() } });
+  }
+});
+
+bot.hears(Object.keys(projectPaths), checkUser, async (ctx) => {
+  const project = ctx.message.text;
+  const projectPath = projectPaths[project];
+  if (!projectPath) {
+    await ctx.reply('Проект не найден.', { reply_markup: { keyboard: updateProjectKeyboard.build() } });
+    return;
+  }
+  try {
+    await connectToServer();
+    const result = await executeCommand('git pull', projectPath);
+    await ctx.reply(`Проект ${project} успешно обновлен:\n${result}`, { reply_markup: { keyboard: updateProjectKeyboard.build() } });
+  } catch (error) {
+    await ctx.reply(`Ошибка: ${error.message}`, { reply_markup: { keyboard: updateProjectKeyboard.build() } });
   }
 });
 
