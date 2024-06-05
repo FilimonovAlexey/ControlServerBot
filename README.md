@@ -65,7 +65,7 @@ SERVER_HOST=''
 SERVER_USERNAME=''
 SERVER_PASSWORD=''
 ADMIN_ID=''
-PROJECT_PATHS=''
+PROJECT_PATHS='name1:путь до папки на сервере,name2:путь до папки на сервере'
 ```
 
 * Устанавливаем pm2 для запуска бота
